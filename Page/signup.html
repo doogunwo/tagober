@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm" crossorigin="anonymous">
+  </script>
+  <style>
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container_intro {
+      border: 2px solid #ddd;
+      padding: 20px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 400px;
+      height: 400px;
+    }
+
+    .container_image {
+      height: 400px;
+    }
+
+    .modal-content {
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      text-align: center;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="container_image">
+      <img src="https://daddyduckinnovationlab.files.wordpress.com/2020/06/bus.gif" width="400" height="400">
+    </div>
+
+    <div class="container_intro">
+      <h1>TaGoBer </h1>
+      <hr>
+      <input class="form-control" id="username" type="text" placeholder="ID">
+      <input class="form-control" id="password" type="text" placeholder="password">
+      <input class="form-control" id="email" type="text" placeholder="email">
+      <input class="form-control" id="phone" type="text" placeholder="phone">
+      <input class="form-control" id="name" type="text" placeholder="name">
+      <hr>
+
+      <!-- Bootstrap 모달 -->
+      <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="exampleModalLabel">회원가입 결과</h5>
+              <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+            <div class="modal-body" id="profile_content">
+              <!-- 모달 내용이 여기에 표시됩니다. -->
+            </div>
+            <div class="modal-footer">
+              <button type="button" id="closeModal" class="btn btn-secondary" data-dismiss="modal">닫기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button class="btn btn-primary" onclick="signup()">회원가입</button>
+        <button class="btn btn-primary" onclick="back()">돌아가기</button>
+      </div>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+      function signup() {
+        // 입력된 정보 가져오기
+        const username = $('#username').val();
+        const password = $('#password').val();
+        const email = $('#email').val();
+        const phone = $('#phone').val();
+        const name = $('#name').val()
+        let userData = {
+          username: username,
+          password: password,
+          email: email,
+          phone: phone,
+          name: name
+        };
+        // 서버로 데이터 전송
+        $.ajax({
+          url: '/signup',
+          method: 'POST',
+          data: JSON.stringify(userData),
+          contentType: 'application/json',
+          success: function (response) {
+            let data = `<h5>${response.message} </h5>`
+            $('#profile_content').html(data);
+            $('#myModal').modal('show');
+          },
+          error: function (error) {
+            let data = `<h5>${response.message} </h5>`
+            $('#profile_content').html(data);
+          }
+        });
+      }
+
+      function back() {
+        window.location.href = "/";
+      }
+
+      $('#closeModal').click(function(){
+        window.location.href = "/";
+      })
+    </script>
+  </div>
+</body>
+
+</html>
