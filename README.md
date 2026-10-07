@@ -2,9 +2,7 @@
 
 # TAGOBER
 
-**얼굴 인식 기반 승차 인증 및 이용 내역 관리 시스템**
-
-Node.js 웹 서버와 Python 얼굴 인식 서버를 하나로 구성한 졸업작품 프로젝트입니다.
+**얼굴 등록·인식과 사용자 기록 조회를 구현한 졸업작품 프로토타입**
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-000000?style=flat-square&logo=express&logoColor=white)
@@ -15,153 +13,98 @@ Node.js 웹 서버와 Python 얼굴 인식 서버를 하나로 구성한 졸업�
 
 </div>
 
-## 프로젝트 소개
+## 프로젝트 개요
 
-TAGOBER는 사용자의 얼굴을 등록하고, 얼굴 인식 결과를 이용해 승차 기록과 요금을 관리하는 시스템입니다. 웹 서비스는 회원가입, 로그인, 얼굴 등록, 프로필 및 이용 내역 조회를 담당하며, Python 서버는 얼굴 모델 학습과 영상 프레임 인식을 처리합니다.
+TAGOBER는 웹에서 사용자 정보와 얼굴 이미지를 등록하고, 카메라 프레임에서 등록 사용자를 식별한 뒤 결과를 MySQL에 기록하는 프로토타입입니다.
 
-기존에 분리되어 있던 Node.js 서버와 Flask 얼굴 인식 서버를 하나의 저장소로 통합한 버전입니다.
+이 저장소는 기존에 분리되어 있던 Express 웹 서버와 Flask 얼굴 인식 코드를 하나로 합친 통합 버전입니다.
 
-## 주요 기능
-
-- 회원가입 및 세션 기반 로그인
-- 사용자 얼굴 이미지 등록
-- 등록된 얼굴을 이용한 사용자 식별
-- 얼굴 인식 모델 재학습
-- 승차 기록 및 요금 저장
-- 사용자 프로필과 이용 내역 조회
-
-## 시스템 구성
+## 구현 구성
 
 ```text
-Web browser
+웹 브라우저
     │
     ▼
-Node.js / Express :3000
-    ├── 회원가입 및 로그인
+Express 서버 (`server.js`)
+    ├── 정적 HTML 제공
+    ├── 회원 정보 저장·로그인 확인
+    ├── 세션에 사용자명 저장
     ├── 얼굴 이미지 업로드
-    ├── 프로필·승차 기록 조회
-    └── 모델 업데이트 요청
+    └── 사용자 정보·기록 조회
               │
-              ▼
-Python / Flask :5000
-    ├── OpenCV 얼굴 검출·인식
-    ├── 얼굴 모델 학습
-    └── 인식 결과 및 결제 기록 처리
-              │
-              ▼
-            MySQL
+              ├──────────────┐
+              ▼              ▼
+           MySQL       Flask 서버 (`model.py`)
+                           ├── 등록 이미지에서 얼굴 검출
+                           ├── 사용자별 LBPH 모델 생성
+                           ├── 전송된 카메라 프레임 인식
+                           └── 인식 결과를 payment 테이블에 기록
+                                      ▲
+                                      │
+                              카메라 클라이언트
+                                (`client.py`)
 ```
 
-## 기술 스택
+## 구현 내용
 
-| 구분 | 기술 |
+### 웹 서버
+
+`server.js`는 Express로 작성되었습니다.
+
+- `/`, `/login`, `/signup`, `/dashboard`에서 HTML 파일을 제공합니다.
+- 회원가입 요청의 `username`, `password`, `name`, `email`, `phone`을 `signup` 테이블에 저장합니다.
+- 로그인 시 `signup` 테이블에서 사용자를 조회하고 입력된 비밀번호를 비교합니다.
+- 로그인한 사용자명은 `express-session`의 세션 값으로 보관합니다.
+- 프로필 요청 시 회원 정보와 `faceregister.imagePath` 존재 여부를 조회합니다.
+- 기록 요청 시 `payment` 테이블에서 현재 사용자의 기록을 읽어 HTML 테이블로 반환합니다.
+- Multer로 업로드한 이미지를 `Page/Data/{username}/{username}.jpg`에 저장하고 해당 경로를 `faceregister` 테이블에 반영합니다.
+
+### 얼굴 모델 생성
+
+`model.py`는 Flask와 OpenCV로 작성되었습니다.
+
+1. `faceregister` 테이블에서 사용자명과 등록 이미지 경로를 읽습니다.
+2. Haar Cascade로 이미지 속 얼굴 영역을 검출합니다.
+3. 검출된 얼굴로 사용자별 `LBPHFaceRecognizer` 객체를 학습합니다.
+4. 생성된 모델은 사용자명을 키로 하는 `models` 딕셔너리에 보관합니다.
+5. `/update` 요청을 받으면 지정된 사용자 한 명의 모델을 다시 생성합니다.
+
+### 카메라 프레임 인식
+
+`client.py`는 OpenCV로 카메라 프레임을 읽고 JPEG로 인코딩한 뒤, 직렬화하여 Flask의 `/video_feed`로 전송합니다.
+
+Flask 서버는 다음 순서로 프레임을 처리합니다.
+
+1. 전송된 프레임을 역직렬화하고 OpenCV 이미지로 복원합니다.
+2. Haar Cascade로 얼굴을 검출하여 `200 × 200` 크기로 변환합니다.
+3. 등록된 사용자별 LBPH 모델로 얼굴을 예측합니다.
+4. 가장 낮은 confidence 값을 반환한 모델의 사용자명을 결과로 선택합니다.
+5. 선택된 사용자명과 고정 요금 값 `1300`, 현재 Unix 시간을 `payment` 테이블에 기록합니다.
+6. 인식한 사용자명을 직렬화하여 클라이언트에 반환합니다.
+
+## 데이터 흐름
+
+| 단계 | 입력 | 처리 | 저장 또는 출력 |
+| --- | --- | --- | --- |
+| 회원가입 | 사용자 정보 | Express가 MySQL INSERT 수행 | `signup` 테이블 |
+| 로그인 | 아이디·비밀번호 | DB 조회 후 문자열 비교 | 세션 사용자명 |
+| 얼굴 등록 | 이미지 파일 | Multer가 사용자별 경로에 저장 | `Page/Data`, `faceregister.imagePath` |
+| 모델 생성 | 등록 이미지 | 얼굴 검출 후 사용자별 LBPH 학습 | 메모리의 `models` 객체 |
+| 얼굴 인식 | 카메라 프레임 | 모든 사용자 모델의 confidence 비교 | 인식 사용자명 |
+| 기록 조회 | 세션 사용자명 | `payment` 테이블 조회 | HTML 테이블 |
+
+## 주요 파일
+
+| 파일 | 역할 |
 | --- | --- |
-| Web server | Node.js, Express, EJS |
-| AI server | Python, Flask |
-| Computer vision | OpenCV, NumPy |
-| Database | MySQL |
-| File upload | Multer |
-| Session | express-session |
-| HTTP communication | Axios, Requests |
+| `server.js` | 웹 페이지, 회원 처리, 이미지 업로드 및 기록 조회 |
+| `model.py` | 얼굴 검출, LBPH 모델 학습 및 프레임 인식 |
+| `client.py` | 카메라 프레임 수집과 Flask 서버 전송 |
+| `Page/` | HTML 페이지와 등록 이미지 |
+| `haarcascade_frontalface_default.xml` | OpenCV 얼굴 검출 분류기 |
+| `dgw0601_model.yml` | 저장된 얼굴 인식 모델 파일 |
 
-## 프로젝트 구조
-
-```text
-tagober/
-├── Page/                            # 웹 페이지 및 등록 이미지
-├── server.js                        # Express 웹 서버
-├── model.py                         # Flask 얼굴 인식 서버
-├── client.py                        # 영상 전송 클라이언트
-├── haarcascade_frontalface_default.xml
-├── dgw0601_model.yml                # 얼굴 인식 모델
-├── package.json                     # Node.js 의존성
-├── package-lock.json
-├── requirements.txt                 # Python 의존성
-└── README.md
-```
-
-## 실행 방법
-
-### 1. 저장소 복제
-
-```bash
-git clone https://github.com/doogunwo/tagober.git
-cd tagober
-```
-
-### 2. 의존성 설치
-
-Node.js 패키지를 설치합니다.
-
-```bash
-npm install
-```
-
-Python 가상환경을 만든 뒤 필요한 패키지를 설치합니다.
-
-```bash
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-source .venv/bin/activate
-
-pip install -r requirements.txt
-```
-
-### 3. 환경 설정
-
-현재 데이터베이스 접속 정보와 서버 주소는 `server.js`, `model.py`, `client.py`에 직접 설정되어 있습니다. 실행 환경에 맞게 다음 값을 수정해야 합니다.
-
-- MySQL 호스트, 포트, 사용자, 비밀번호 및 데이터베이스
-- Express 서버 주소
-- Flask 얼굴 인식 서버 주소
-- 카메라 또는 영상 입력 설정
-
-### 4. 서버 실행
-
-얼굴 인식 서버를 먼저 실행합니다.
-
-```bash
-python model.py
-```
-
-별도 터미널에서 웹 서버를 실행합니다.
-
-```bash
-node server.js
-```
-
-웹 서버는 기본적으로 `http://localhost:3000`에서 실행됩니다. 현재 Flask 서버의 호스트 주소는 `model.py`에 지정되어 있으므로 실행 환경에 맞게 변경해야 합니다.
-
-## 주요 엔드포인트
-
-### Express 서버
-
-| Method | Endpoint | 설명 |
-| --- | --- | --- |
-| `GET` | `/` | 메인 화면 |
-| `GET` | `/login` | 로그인 화면 |
-| `GET` | `/signup` | 회원가입 화면 |
-| `GET` | `/dashboard` | 대시보드 |
-| `GET` | `/profile` | 사용자 프로필 |
-| `GET` | `/record` | 승차 기록 |
-| `GET` | `/face` | 얼굴 등록 화면 |
-| `POST` | `/signup` | 회원 등록 |
-| `POST` | `/login` | 로그인 처리 |
-| `POST` | `/upload` | 얼굴 이미지 업로드 및 모델 업데이트 요청 |
-
-### Flask 서버
-
-| Method | Endpoint | 설명 |
-| --- | --- | --- |
-| `POST` | `/start` | 얼굴 인식 시작 |
-| `POST` | `/update` | 등록 이미지 기반 모델 재학습 |
-| `POST` | `/video_feed` | 영상 프레임 얼굴 인식 |
-
-## 화면 미리보기
+## 화면
 
 <table>
   <tr>
@@ -178,6 +121,6 @@ node server.js
   </tr>
 </table>
 
-## 참고
+## 제작
 
-이 저장소는 동의대학교 컴퓨터공학과 졸업작품으로 제작되었습니다.
+동의대학교 컴퓨터공학과 졸업작품으로 제작했습니다.
